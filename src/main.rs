@@ -1,0 +1,96 @@
+use anyhow::{Context, Result};
+use clap::Parser;
+use pulldown_cmark::{Event, Options, Parser as MarkdownParser, Tag, TagEnd};
+use std::fs;
+use std::ops::Range;
+use std::path::{Path, PathBuf};
+
+/// Automatically add links to Markdown files
+#[derive(Parser)]
+#[command(name = "linkup")]
+struct Args {
+    /// Markdown files to process
+    files: Vec<PathBuf>,
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+    for file in &args.files {
+        process_file(file)?;
+    }
+    Ok(())
+}
+
+fn process_file(path: &Path) -> Result<()> {
+    let content =
+        fs::read_to_string(path).with_context(|| format!("Failed to read {}", path.display()))?;
+    let parent_dir = path
+        .parent()
+        .with_context(|| format!("File {} has no parent directory", path.display()))?;
+    let modified = add_links(&content, parent_dir)
+        .with_context(|| format!("Failed to add links to {}", path.display()))?;
+    if modified != content {
+        fs::write(path, modified).with_context(|| format!("Failed to write {}", path.display()))?;
+    }
+    Ok(())
+}
+
+fn find_bracket_pair(text: &str, start: usize) -> Option<Range<usize>> {
+    let bracket_pos = text[start..].find('[')?;
+    let open = start + bracket_pos;
+    text[open..].find(']').map(|close| open..open + close + 1)
+}
+
+fn add_links(content: &str, base_dir: &Path) -> Result<String> {
+    let options = Options::empty();
+
+    let mut result = content.to_string();
+    let mut search_start = 0;
+
+    loop {
+        let Some(range) = find_bracket_pair(&result, search_start) else {
+            break;
+        };
+        if range.is_empty()
+            || range.start.saturating_add(1) >= range.end
+            || result.as_bytes().get(range.end) == Some(&b'(')
+        {
+            search_start = range.end;
+            continue;
+        }
+        let before = result[..range.start].to_string();
+        let parser = MarkdownParser::new_ext(&before, options);
+        let mut in_code_block = false;
+        for event in parser {
+            match event {
+                Event::Start(Tag::CodeBlock(_)) => {
+                    in_code_block = true;
+                }
+                Event::End(TagEnd::CodeBlock) => {
+                    in_code_block = false;
+                }
+                _ => {}
+            }
+        }
+        if in_code_block {
+            search_start = range.end;
+            continue;
+        }
+
+        let link_text = result[range.start + 1..range.end - 1].to_string();
+        debug_assert!(!link_text.is_empty());
+        let slug = link_text.replace(' ', "-").to_lowercase();
+        let dest = base_dir.join(format!("{slug}.md"));
+        if dest.exists() {
+            let dest_name = dest
+                .file_name()
+                .and_then(|n| n.to_str())
+                .with_context(|| "Invalid file name")?;
+            result.replace_range(range.clone(), &format!("[{link_text}]({dest_name})"));
+            search_start = range.start + link_text.len() + dest_name.len() + "[]()".len();
+            continue;
+        }
+    }
+
+    Ok(result)
+}
