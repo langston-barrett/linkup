@@ -41,9 +41,25 @@ fn find_bracket_pair(text: &str, start: usize) -> Option<Range<usize>> {
     text[open..].find(']').map(|close| open..open + close + 1)
 }
 
-fn add_links(content: &str, base_dir: &Path) -> Result<String> {
+fn in_code_block(before: &str) -> bool {
     let options = Options::empty();
+    let parser = MarkdownParser::new_ext(before, options);
+    let mut result = false;
+    for event in parser {
+        match event {
+            Event::Start(Tag::CodeBlock(_)) => {
+                result = true;
+            }
+            Event::End(TagEnd::CodeBlock) => {
+                result = false;
+            }
+            _ => {}
+        }
+    }
+    result
+}
 
+fn add_links(content: &str, base_dir: &Path) -> Result<String> {
     let mut result = content.to_string();
     let mut search_start = 0;
 
@@ -54,25 +70,8 @@ fn add_links(content: &str, base_dir: &Path) -> Result<String> {
         if range.is_empty()
             || range.start.saturating_add(1) >= range.end
             || result.as_bytes().get(range.end) == Some(&b'(')
+            || in_code_block(&result[..range.start])
         {
-            search_start = range.end;
-            continue;
-        }
-        let before = result[..range.start].to_string();
-        let parser = MarkdownParser::new_ext(&before, options);
-        let mut in_code_block = false;
-        for event in parser {
-            match event {
-                Event::Start(Tag::CodeBlock(_)) => {
-                    in_code_block = true;
-                }
-                Event::End(TagEnd::CodeBlock) => {
-                    in_code_block = false;
-                }
-                _ => {}
-            }
-        }
-        if in_code_block {
             search_start = range.end;
             continue;
         }
