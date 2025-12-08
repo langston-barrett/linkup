@@ -16,13 +16,14 @@ It will fill in the link to `ipsum`:
 Lorem [ipsum](ipsum.md) dolor sit amet.
 ```
 
+For more examples, see [`tests/`](tests/).
+
 ## Features
 
 - Fills in Markdown links
 - Fast
 - Precompiled binaries available
-- Safe, doesn't panic
-- <100 lines of code
+- <150 lines of code
 
 ## Non-Features
 
