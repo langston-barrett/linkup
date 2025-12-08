@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -219,11 +220,58 @@ fn test(test: &'static str) {
 }
 
 #[test]
-fn test_boundaries() {
+fn boundaries() {
     test("boundaries.md");
 }
 
 #[test]
-fn test_existing() {
+fn existing() {
     test("existing.md");
+}
+
+fn collect_doc_files(dir: &Path) -> Result<BTreeMap<PathBuf, String>> {
+    let mut files = BTreeMap::new();
+
+    fn walk_dir(dir: &Path, files: &mut BTreeMap<PathBuf, String>) -> Result<()> {
+        let entries = std::fs::read_dir(dir)
+            .with_context(|| format!("Failed to read directory {}", dir.display()))?;
+
+        for entry in entries {
+            let entry =
+                entry.with_context(|| format!("Failed to read entry in {}", dir.display()))?;
+            let path = entry.path();
+            let file_name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or_else(|| anyhow::anyhow!("Invalid file name {}", path.display()))?;
+
+            if file_name == "book" && path.is_dir() {
+                continue;
+            }
+            if path.is_dir() {
+                walk_dir(&path, files)?;
+            } else if path.is_file() && path.extension() == Some(OsStr::new("md")) {
+                let content = std::fs::read_to_string(&path)
+                    .with_context(|| format!("Failed to read file {}", path.display()))?;
+                files.insert(path.clone(), content);
+            }
+        }
+        Ok(())
+    }
+
+    walk_dir(dir, &mut files)?;
+    Ok(files)
+}
+
+#[test]
+fn doc_files_unchanged() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let doc_dir = manifest_dir.join("doc");
+    let doc_files = collect_doc_files(&doc_dir)
+        .with_context(|| format!("Failed to collect files from {}", doc_dir.display()))
+        .unwrap();
+    for (path, content) in doc_files {
+        let modified = add_links(&content, &manifest_dir, |p| Ok(p.exists())).unwrap();
+        assert_eq!(*content, modified, "{} changed", path.display());
+    }
 }
