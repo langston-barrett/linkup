@@ -69,13 +69,14 @@ fn collect_reference_link_labels(content: &str) -> HashSet<&str> {
     for line in content.lines() {
         let line = line.trim_end();
         if let Some(bracket_start) = line.find('[')
-            && let Some(bracket_end) = line[bracket_start + 1..].find(']') {
-                let bracket_end = bracket_start + 1 + bracket_end;
-                if Some(&b':') == line.as_bytes().get(bracket_end + 1) {
-                    let label = &line[bracket_start + 1..bracket_end];
-                    labels.insert(label);
-                }
+            && let Some(bracket_end) = line[bracket_start + 1..].find(']')
+        {
+            let bracket_end = bracket_start + 1 + bracket_end;
+            if Some(&b':') == line.as_bytes().get(bracket_end + 1) {
+                let label = &line[bracket_start + 1..bracket_end];
+                labels.insert(label);
             }
+        }
     }
     labels
 }
