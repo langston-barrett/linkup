@@ -16,7 +16,7 @@ It will fill in the link to `ipsum`:
 Lorem [ipsum](ipsum.md) dolor sit amet.
 ```
 
-For more examples, see [`tests/`](tests/).
+For more examples, see `tests/`.
 
 ## Features
 
