@@ -29,15 +29,3 @@ For more examples, see [`tests/`](tests/).
 
 - No recursive mode, use `find`/`xargs`/shell globs
 - Not parallel, use `xargs`, `make`, or `ninja`
-
-## Install
-
-Download a binary from the [releases page][releases], or build with
-[Cargo][cargo]:
-
-```sh
-cargo install --locked linkup
-```
-
-[cargo]: https://doc.rust-lang.org/cargo/
-[releases]: https://github.com/langston-barrett/linkup/releases
